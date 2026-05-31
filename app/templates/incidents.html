@@ -1,0 +1,287 @@
+{% extends "base.html" %}
+
+{% block title %}Incident Management - Sentinel SOC{% endblock %}
+
+{% block extra_css %}
+<style>
+    .incident-pane-left {
+        max-height: calc(100vh - 160px);
+        overflow-y: auto;
+    }
+    
+    .incident-pane-right {
+        max-height: calc(100vh - 160px);
+        overflow-y: auto;
+    }
+
+    .incident-card {
+        cursor: pointer;
+        border: 1px solid var(--border-color);
+        background: rgba(27, 27, 35, 0.4);
+        padding: 16px;
+        border-radius: var(--radius-xl);
+        margin-bottom: 12px;
+        transition: all 0.2s ease;
+    }
+
+    .incident-card:hover {
+        border-color: rgba(99, 102, 241, 0.4);
+        background: rgba(31, 31, 39, 0.6);
+    }
+
+    .incident-card.active {
+        border-color: var(--color-primary);
+        background: rgba(99, 102, 241, 0.1);
+        box-shadow: 0 0 10px rgba(99, 102, 241, 0.15);
+    }
+    
+    .timeline-item {
+        border-left: 2px solid var(--border-color);
+        padding-left: 20px;
+        padding-bottom: 20px;
+        position: relative;
+    }
+    
+    .timeline-item::after {
+        content: "";
+        display: block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background-color: var(--text-muted);
+        position: absolute;
+        left: -6px;
+        top: 6px;
+        border: 2px solid var(--bg-floor);
+    }
+    
+    .timeline-item.timeline-item-active::after {
+        background-color: var(--color-primary);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4 h-100">
+    <!-- Left Pane: Search, Filter, and Incident List -->
+    <div class="col-12 col-lg-5">
+        <div class="glass-panel p-4 h-100 d-flex flex-column">
+            <h5 class="text-headline-md text-white mb-3 fw-semibold">Active Incidents</h5>
+            
+            <!-- Filters -->
+            <form class="mb-4" method="GET" action="{{ url_for('incidents.list_incidents') }}">
+                <div class="mb-3">
+                    <input class="form-input-sentinel w-100 font-mono-data" type="text" name="search" placeholder="Search case title or description..." value="{{ search_query or '' }}"/>
+                </div>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <select class="form-input-sentinel w-100 py-1.5 font-mono-data" name="status" onchange="this.form.submit()">
+                            <option value="">-- All Statuses --</option>
+                            <option value="New" {% if status_filter == 'New' %}selected{% endif %}>New</option>
+                            <option value="Open" {% if status_filter == 'Open' %}selected{% endif %}>Open</option>
+                            <option value="Investigating" {% if status_filter == 'Investigating' %}selected{% endif %}>Investigating</option>
+                            <option value="Remediated" {% if status_filter == 'Remediated' %}selected{% endif %}>Remediated</option>
+                            <option value="Closed" {% if status_filter == 'Closed' %}selected{% endif %}>Closed</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <select class="form-input-sentinel w-100 py-1.5 font-mono-data" name="priority" onchange="this.form.submit()">
+                            <option value="">-- All Priorities --</option>
+                            <option value="Critical" {% if priority_filter == 'Critical' %}selected{% endif %}>Critical</option>
+                            <option value="High" {% if priority_filter == 'High' %}selected{% endif %}>High</option>
+                            <option value="Medium" {% if priority_filter == 'Medium' %}selected{% endif %}>Medium</option>
+                            <option value="Low" {% if priority_filter == 'Low' %}selected{% endif %}>Low</option>
+                        </select>
+                    </div>
+                </div>
+            </form>
+            
+            <!-- Incident List -->
+            <div class="incident-pane-left">
+                {% for inc in incidents %}
+                <div class="incident-card {% if selected_incident and selected_incident.id == inc.id %}active{% endif %}" onclick="window.location.href='{{ url_for('incidents.list_incidents', selected_id=inc.id, search=search_query or '', status=status_filter or '', priority=priority_filter or '') }}'">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="font-mono-data text-secondary" style="font-size: 11px;">#CASE_{{ inc.id }}</span>
+                        {% if inc.priority == 'Critical' %}
+                        <span class="status-badge status-badge-critical">Critical</span>
+                        {% elif inc.priority == 'High' %}
+                        <span class="status-badge status-badge-high">High</span>
+                        {% elif inc.priority == 'Medium' %}
+                        <span class="status-badge status-badge-medium">Medium</span>
+                        {% else %}
+                        <span class="status-badge status-badge-low">Low</span>
+                        {% endif %}
+                    </div>
+                    <h6 class="text-white fw-bold mb-2">{{ inc.title }}</h6>
+                    <div class="d-flex justify-content-between align-items-center text-secondary" style="font-size: 12px;">
+                        <span>Owner: <strong class="text-white">{{ inc.assignee.username if inc.assignee else 'Unassigned' }}</strong></span>
+                        <span class="font-mono-data">{{ inc.created_at.strftime('%Y-%m-%d') }}</span>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center py-5 text-secondary">
+                    <span class="material-symbols-outlined mb-2" style="font-size: 36px;">folder_open</span>
+                    <div>No security incidents found matching constraints.</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Pane: Detail view of selected incident -->
+    <div class="col-12 col-lg-7">
+        <div class="glass-panel p-4 h-100 incident-pane-right">
+            {% if selected_incident %}
+                <div class="scan-line-overlay"></div>
+                
+                <!-- Detail Header -->
+                <div class="d-flex justify-content-between align-items-start mb-4 pb-3" style="border-bottom: 1px solid rgba(70, 69, 84, 0.3);">
+                    <div>
+                        <div class="font-mono-data text-secondary mb-1">INCIDENT CASE FILE #{{ selected_incident.id }}</div>
+                        <h4 class="text-white fw-bold mb-0">{{ selected_incident.title }}</h4>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <span class="badge bg-dark border border-secondary text-uppercase py-2 px-3 font-mono-data" style="font-size: 11px; color: var(--text-primary);">
+                            {{ selected_incident.status }}
+                        </span>
+                        {% if selected_incident.priority == 'Critical' %}
+                        <span class="status-badge status-badge-critical p-2 px-3">Critical Priority</span>
+                        {% elif selected_incident.priority == 'High' %}
+                        <span class="status-badge status-badge-high p-2 px-3">High Priority</span>
+                        {% elif selected_incident.priority == 'Medium' %}
+                        <span class="status-badge status-badge-medium p-2 px-3">Medium Priority</span>
+                        {% else %}
+                        <span class="status-badge status-badge-low p-2 px-3">Low Priority</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Update Triage controls -->
+                <form class="row g-3 mb-4 p-3 bg-dark rounded border border-secondary" style="border-color: rgba(70, 69, 84, 0.3) !important;" method="POST" action="{{ url_for('incidents.update_incident', incident_id=selected_incident.id) }}">
+                    <div class="col-6 col-sm-4">
+                        <label class="text-label-md text-secondary d-block mb-1">Assign Analyst</label>
+                        <select class="form-input-sentinel w-100 py-1.5 font-mono-data" name="assigned_to" onchange="this.form.submit()">
+                            <option value="">Unassigned</option>
+                            {% for analyst in analysts %}
+                            <option value="{{ analyst.id }}" {% if selected_incident.assigned_to == analyst.id %}selected{% endif %}>{{ analyst.username }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="col-6 col-sm-4">
+                        <label class="text-label-md text-secondary d-block mb-1">Incident Status</label>
+                        <select class="form-input-sentinel w-100 py-1.5 font-mono-data" name="status" onchange="this.form.submit()">
+                            <option value="New" {% if selected_incident.status == 'New' %}selected{% endif %}>New</option>
+                            <option value="Open" {% if selected_incident.status == 'Open' %}selected{% endif %}>Open</option>
+                            <option value="Investigating" {% if selected_incident.status == 'Investigating' %}selected{% endif %}>Investigating</option>
+                            <option value="Remediated" {% if selected_incident.status == 'Remediated' %}selected{% endif %}>Remediated</option>
+                            <option value="Closed" {% if selected_incident.status == 'Closed' %}selected{% endif %}>Closed</option>
+                        </select>
+                    </div>
+
+                    <div class="col-12 col-sm-4">
+                        <label class="text-label-md text-secondary d-block mb-1">Incident Priority</label>
+                        <select class="form-input-sentinel w-100 py-1.5 font-mono-data" name="priority" onchange="this.form.submit()">
+                            <option value="Critical" {% if selected_incident.priority == 'Critical' %}selected{% endif %}>Critical</option>
+                            <option value="High" {% if selected_incident.priority == 'High' %}selected{% endif %}>High</option>
+                            <option value="Medium" {% if selected_incident.priority == 'Medium' %}selected{% endif %}>Medium</option>
+                            <option value="Low" {% if selected_incident.priority == 'Low' %}selected{% endif %}>Low</option>
+                        </select>
+                    </div>
+                </form>
+
+                <!-- Case Description -->
+                <div class="mb-4">
+                    <h5 class="text-headline-md text-white mb-2 fw-semibold">Case Summary</h5>
+                    <div class="p-3 bg-dark rounded border border-secondary text-secondary font-mono-data text-xs" style="border-color: rgba(70, 69, 84, 0.2) !important; max-height: 200px; overflow-y: auto; white-space: pre-line;">
+                        {{ selected_incident.description }}
+                    </div>
+                </div>
+
+                <!-- Linked Alerts -->
+                <div class="mb-4">
+                    <h5 class="text-headline-md text-white mb-2 fw-semibold">Linked SIEM Alerts</h5>
+                    <div class="table-responsive">
+                        <table class="table-sentinel font-mono-data" style="font-size: 12px;">
+                            <thead>
+                                <tr>
+                                    <th>Alert Source</th>
+                                    <th>Trigger Value</th>
+                                    <th>Severity</th>
+                                    <th>Triage</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for alert in selected_incident.alerts %}
+                                <tr>
+                                    <td>
+                                        <div class="fw-semibold text-white">{{ alert.title }}</div>
+                                        <div class="text-secondary" style="font-size: 11px;">Source: {{ alert.source }}</div>
+                                    </td>
+                                    <td class="text-secondary">{{ alert.matched_value }}</td>
+                                    <td>
+                                        {% if alert.severity == 'Critical' %}
+                                        <span class="status-badge status-badge-critical">Critical</span>
+                                        {% else %}
+                                        <span class="status-badge status-badge-high">High</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if alert.status != 'Resolved' and alert.status != 'False Positive' %}
+                                        <div class="dropdown">
+                                            <button class="btn btn-outline-secondary btn-xs py-0.5 px-2 text-white border-secondary font-mono-data dropdown-toggle" type="button" data-bs-toggle="dropdown" style="font-size: 10px;">
+                                                ACTION
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-dark">
+                                                <li>
+                                                    <form method="POST" action="{{ url_for('incidents.triage_alert', alert_id=alert.id) }}">
+                                                        <input type="hidden" name="action" value="resolve">
+                                                        <button class="dropdown-item text-success" type="submit">Resolve Alert</button>
+                                                    </form>
+                                                </li>
+                                                <li>
+                                                    <form method="POST" action="{{ url_for('incidents.triage_alert', alert_id=alert.id) }}">
+                                                        <input type="hidden" name="action" value="false_positive">
+                                                        <button class="dropdown-item text-danger" type="submit">Mark False Positive</button>
+                                                    </form>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                        {% else %}
+                                        <span class="badge border border-secondary text-secondary font-mono-data text-uppercase" style="font-size: 9px;">{{ alert.status }}</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="4" class="text-center py-3 text-secondary">No raw alerts linked to this incident file.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Add Operational note -->
+                <div class="mb-4">
+                    <h5 class="text-headline-md text-white mb-2 fw-semibold">Add Operational Note</h5>
+                    <form method="POST" action="{{ url_for('incidents.add_note', incident_id=selected_incident.id) }}">
+                        <div class="mb-3">
+                            <textarea class="form-input-sentinel w-100 font-mono-data" style="height: 80px;" name="note_text" placeholder="Specify triage details, forensic indicators discovered, or escalation justifications..."></textarea>
+                        </div>
+                        <button class="btn btn-primary text-label-md py-2 px-4" type="submit" style="background-color: var(--color-primary); border: none; font-weight: 600;">
+                            RECORD NOTE
+                        </button>
+                    </form>
+                </div>
+            {% else %}
+                <div class="d-flex flex-column align-items-center justify-content-center h-100 py-5 text-center text-secondary">
+                    <span class="material-symbols-outlined mb-2" style="font-size: 48px;">tab_unselected</span>
+                    <h5>No Incident Selected</h5>
+                    <p>Select a case file from the active incidents list to view alerts timeline, forensic notes, and triage controls.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

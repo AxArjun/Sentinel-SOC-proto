@@ -1,0 +1,379 @@
+{% extends "base.html" %}
+
+{% block title %}SOC Analytics Dashboard - Sentinel SOC{% endblock %}
+
+{% block extra_css %}
+<style>
+    .chart-container {
+        position: relative;
+        height: 220px;
+        width: 100%;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="text-display-sm text-white mb-1 fw-bold">SOC Operations Dashboard</h2>
+        <p class="text-secondary small mb-0">Real-time threat intelligence feeds, incident queues, and system telemetry monitors.</p>
+    </div>
+    <div class="text-end">
+        <span class="status-badge status-badge-success p-2 px-3">
+            🛡️ SHIELD STATUS: SECURE
+        </span>
+    </div>
+</div>
+
+<!-- 4 Core Metrics Grid -->
+<div class="row g-3 mb-4">
+    <!-- Total Threats Campaign -->
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="glass-panel metric-card">
+            <div class="scan-line-overlay"></div>
+            <div class="metric-header">
+                <span class="metric-title">Threat Campaigns</span>
+                <span class="material-symbols-outlined text-primary">radar</span>
+            </div>
+            <div>
+                <div class="metric-value font-mono-data">{{ stats.threats }}</div>
+                <div class="text-secondary" style="font-size: 11px; margin-top: 4px;">
+                    Active Actor Targets
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Total Ingested IOCs -->
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="glass-panel metric-card">
+            <div class="scan-line-overlay"></div>
+            <div class="metric-header">
+                <span class="metric-title">Total IOCs</span>
+                <span class="material-symbols-outlined text-secondary">fingerprint</span>
+            </div>
+            <div>
+                <div class="metric-value font-mono-data">{{ stats.iocs }}</div>
+                <div class="text-secondary" style="font-size: 11px; margin-top: 4px;">
+                    Indicators of Compromise
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Alerts Queue -->
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="glass-panel metric-card">
+            <div class="scan-line-overlay"></div>
+            <div class="metric-header">
+                <span class="metric-title">Active Alerts</span>
+                <span class="material-symbols-outlined text-tertiary">notifications_active</span>
+            </div>
+            <div>
+                <div class="metric-value font-mono-data">{{ stats.alerts }}</div>
+                <div class="text-secondary" style="font-size: 11px; margin-top: 4px;">
+                    SIEM Real-time Matches
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Security Incidents -->
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="glass-panel metric-card">
+            <div class="scan-line-overlay"></div>
+            <div class="metric-header">
+                <span class="metric-title">Open Incidents</span>
+                <span class="material-symbols-outlined text-danger">confirmation_number</span>
+            </div>
+            <div>
+                <div class="metric-value font-mono-data">{{ stats.incidents }}</div>
+                <div class="text-secondary" style="font-size: 11px; margin-top: 4px;">
+                    Investigation Cases
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Visual Telemetry Charts Row -->
+<div class="row g-4 mb-4">
+    <!-- Threat Trends Chart -->
+    <div class="col-12 col-lg-7">
+        <div class="glass-panel p-4">
+            <h5 class="text-headline-md text-white mb-3 fw-semibold">Threat Trends (24h)</h5>
+            <div class="chart-container">
+                <canvas id="threatTrendsChart"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Severity Distribution Chart -->
+    <div class="col-12 col-lg-5">
+        <div class="glass-panel p-4">
+            <h5 class="text-headline-md text-white mb-3 fw-semibold">Severity Distribution</h5>
+            <div class="chart-container">
+                <canvas id="severityDistChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Dynamic Activity Tables Row -->
+<div class="row g-4 mb-4">
+    <!-- Active Alerts Table -->
+    <div class="col-12 col-lg-6">
+        <div class="glass-panel p-4 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="text-headline-md text-white mb-0 fw-semibold">Active Alerts</h5>
+                <a href="{{ url_for('incidents.list_incidents') }}" class="text-label-md text-primary-dim text-decoration-none hover:text-primary">Triage Queue →</a>
+            </div>
+            <div class="table-responsive">
+                <table class="table-sentinel">
+                    <thead>
+                        <tr>
+                            <th>Alert Description</th>
+                            <th>Source</th>
+                            <th>Severity</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for alert in recent_alerts %}
+                        <tr>
+                            <td>
+                                <div class="fw-semibold text-white">{{ alert.title }}</div>
+                                <div class="text-secondary font-mono-data" style="font-size: 11px;">Matched: {{ alert.matched_value }}</div>
+                            </td>
+                            <td class="font-mono-data text-secondary">{{ alert.source }}</td>
+                            <td>
+                                {% if alert.severity == 'Critical' %}
+                                <span class="status-badge status-badge-critical">Critical</span>
+                                {% elif alert.severity == 'High' %}
+                                <span class="status-badge status-badge-high">High</span>
+                                {% elif alert.severity == 'Medium' %}
+                                <span class="status-badge status-badge-medium">Medium</span>
+                                {% else %}
+                                <span class="status-badge status-badge-low">Low</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="3" class="text-center py-4 text-secondary">No active alerts triggered in the SIEM engine.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Open Incidents Table -->
+    <div class="col-12 col-lg-6">
+        <div class="glass-panel p-4 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="text-headline-md text-white mb-0 fw-semibold">Open Incidents</h5>
+                <a href="{{ url_for('incidents.list_incidents') }}" class="text-label-md text-primary-dim text-decoration-none hover:text-primary">View Case Manager →</a>
+            </div>
+            <div class="table-responsive">
+                <table class="table-sentinel">
+                    <thead>
+                        <tr>
+                            <th>Incident Title</th>
+                            <th>Priority</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for inc in recent_incidents %}
+                        <tr onclick="window.location.href='{{ url_for('incidents.list_incidents', selected_id=inc.id) }}'" style="cursor: pointer;">
+                            <td>
+                                <div class="fw-semibold text-white">#{{ inc.id }}: {{ inc.title }}</div>
+                                <div class="text-secondary" style="font-size: 11px;">Assigned: {{ inc.assignee.username if inc.assignee else 'Unassigned' }}</div>
+                            </td>
+                            <td>
+                                {% if inc.priority == 'Critical' %}
+                                <span class="status-badge status-badge-critical">Critical</span>
+                                {% elif inc.priority == 'High' %}
+                                <span class="status-badge status-badge-high">High</span>
+                                {% elif inc.priority == 'Medium' %}
+                                <span class="status-badge status-badge-medium">Medium</span>
+                                {% else %}
+                                <span class="status-badge status-badge-low">Low</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge border bg-dark font-mono-data py-1.5 px-2.5 text-uppercase" style="font-size: 10px; border-color: var(--border-color) !important; color: var(--text-primary);">
+                                    {{ inc.status }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="3" class="text-center py-4 text-secondary">All incidents are currently closed or resolved.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bottom Audit Logs (Admin only) & System settings -->
+<div class="row g-4">
+    <!-- Platform monitor -->
+    <div class="col-12 col-lg-5">
+        <div class="glass-panel p-4 h-100">
+            <h5 class="text-headline-md text-white mb-3 fw-semibold">🛡️ Platform Integrity Monitor</h5>
+            <div class="list-group list-group-flush bg-transparent">
+                <div class="list-group-item bg-transparent border-secondary text-white d-flex justify-content-between align-items-center py-2 px-0" style="border-bottom-color: rgba(70,69,84,0.3) !important;">
+                    <div>
+                        <div class="fw-semibold" style="font-size: 13px;">Session Security</div>
+                        <div class="small text-secondary font-mono-data" style="font-size: 11px;">HTTPOnly & SameSite Cookie flags active</div>
+                    </div>
+                    <span class="status-badge status-badge-success">ACTIVE</span>
+                </div>
+                <div class="list-group-item bg-transparent border-secondary text-white d-flex justify-content-between align-items-center py-2 px-0" style="border-bottom-color: rgba(70,69,84,0.3) !important;">
+                    <div>
+                        <div class="fw-semibold" style="font-size: 13px;">CSRF Shield</div>
+                        <div class="small text-secondary font-mono-data" style="font-size: 11px;">Flask-WTF tokens bound globally</div>
+                    </div>
+                    <span class="status-badge status-badge-success">ACTIVE</span>
+                </div>
+                <div class="list-group-item bg-transparent border-secondary text-white d-flex justify-content-between align-items-center py-2 px-0" style="border-bottom-color: rgba(70,69,84,0.3) !important;">
+                    <div>
+                        <div class="fw-semibold" style="font-size: 13px;">Role-Based Gateways</div>
+                        <div class="small text-secondary font-mono-data" style="font-size: 11px;">Endpoint view permissions mapping active</div>
+                    </div>
+                    <span class="status-badge status-badge-success">ACTIVE</span>
+                </div>
+                <div class="list-group-item bg-transparent border-0 text-white d-flex justify-content-between align-items-center py-2 px-0">
+                    <div>
+                        <div class="fw-semibold" style="font-size: 13px;">MySQL Engine Pool</div>
+                        <div class="small text-secondary font-mono-data" style="font-size: 11px;">Thread-safe connection limits active</div>
+                    </div>
+                    <span class="status-badge status-badge-success">ACTIVE</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Audit Logs -->
+    <div class="col-12 col-lg-7">
+        <div class="glass-panel p-4 h-100">
+            <h5 class="text-headline-md text-white mb-3 fw-semibold">📋 Security Audit Logs</h5>
+            {% if g.user.has_permission('view_audit_logs') %}
+                <div class="table-responsive">
+                    <table class="table-sentinel font-mono-data" style="font-size: 12px;">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Action</th>
+                                <th>IP Address</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in audit_logs %}
+                            <tr>
+                                <td class="text-secondary">{{ log.created_at.strftime('%H:%M:%S') }}</td>
+                                <td>
+                                    {% if 'SUCCESS' in log.action or 'CREATE' in log.action %}
+                                        <span class="text-success">{{ log.action }}</span>
+                                    {% elif 'FAILURE' in log.action %}
+                                        <span class="text-danger">{{ log.action }}</span>
+                                    {% else %}
+                                        <span class="text-primary-dim">{{ log.action }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-secondary">{{ log.ip_address }}</td>
+                                <td class="text-wrap text-white" style="max-width: 240px;">{{ log.details }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="d-flex flex-column align-items-center justify-content-center h-100 py-4 text-center">
+                    <span class="material-symbols-outlined text-muted mb-2" style="font-size: 40px;">visibility_off</span>
+                    <p class="text-secondary mb-0">Audit log interface is restricted to users holding the <strong>view_audit_logs</strong> administrative permission.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- ChartJS Script CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Config ChartJS Globals for dark mode
+    Chart.defaults.color = '#908fa0';
+    Chart.defaults.font.family = 'Inter';
+
+    // 1. Threat Trends (24h) Chart
+    const ctxTrends = document.getElementById('threatTrendsChart').getContext('2d');
+    new Chart(ctxTrends, {
+        type: 'line',
+        data: {
+            labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', 'now'],
+            datasets: [{
+                label: 'SIEM Matches',
+                data: [12, 19, 3, 5, 2, 3, 8],
+                borderColor: '#6366f1',
+                backgroundColor: 'rgba(99, 102, 241, 0.05)',
+                borderWidth: 3,
+                fill: true,
+                tension: 0.3
+            }, {
+                label: 'Firewall Denials',
+                data: [45, 62, 54, 73, 58, 69, 82],
+                borderColor: '#89ceff',
+                backgroundColor: 'transparent',
+                borderWidth: 1.5,
+                borderDash: [5, 5],
+                tension: 0.3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: { boxWidth: 12, font: { size: 11 } }
+                }
+            },
+            scales: {
+                x: { grid: { color: 'rgba(70, 69, 84, 0.15)' } },
+                y: { grid: { color: 'rgba(70, 69, 84, 0.15)' } }
+            }
+        }
+    });
+
+    // 2. Severity Distribution Chart
+    const ctxSev = document.getElementById('severityDistChart').getContext('2d');
+    new Chart(ctxSev, {
+        type: 'doughnut',
+        data: {
+            labels: ['Critical', 'High', 'Medium', 'Low'],
+            datasets: [{
+                data: [2, 5, 12, 8],
+                backgroundColor: ['#ffb4ab', '#ffb783', '#89ceff', '#908fa0'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: { boxWidth: 12, font: { size: 11 } }
+                }
+            },
+            cutout: '70%'
+        }
+    });
+</script>
+{% endblock %}

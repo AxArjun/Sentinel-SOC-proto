@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+
+{% block title %}Sentinel SOC Command - Secure Login{% endblock %}
+
+{% block extra_css %}
+<style>
+    body {
+        background-color: #0f172a;
+        overflow: hidden;
+    }
+
+    .network-bg {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 0;
+        opacity: 0.15;
+        background-image: radial-gradient(circle at 2px 2px, #334155 1px, transparent 0);
+        background-size: 40px 40px;
+    }
+
+    .login-glass-card {
+        background: rgba(30, 41, 59, 0.85); /* Level 1 Panel */
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid #334155;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+        border-top: 1px solid rgba(255, 255, 255, 0.1); /* Light catch */
+        position: relative;
+        overflow: hidden;
+        border-radius: var(--radius-2xl);
+    }
+
+    canvas#nodes {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Abstract Network Node Map Background -->
+<canvas id="nodes"></canvas>
+<div class="network-bg"></div>
+
+<main class="w-100 z-10" style="position: relative; z-index: 1;">
+    <div class="row justify-content-center w-100 m-0">
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="login-glass-card p-5">
+                <div class="scan-line-overlay"></div>
+                
+                <!-- Branding Header -->
+                <div class="text-center mb-4">
+                    <div class="inline-flex d-inline-flex align-items-center justify-content-center w-12 h-12 rounded-lg bg-opacity-10 border mb-3" style="width: 48px; height: 48px; background: rgba(128, 131, 255, 0.1); border-color: rgba(128, 131, 255, 0.3); border-radius: var(--radius-xl);">
+                        <span class="material-symbols-outlined text-primary text-3xl" style="font-variation-settings: 'FILL' 1; font-size: 30px;">security</span>
+                    </div>
+                    <h1 class="text-display-sm text-on-surface tracking-tight mb-1 text-white">Sentinel</h1>
+                    <p class="text-label-md text-primary uppercase tracking-[0.2em] opacity-80 font-mono-data mb-0">SOC Command</p>
+                </div>
+                
+                <!-- Login Form -->
+                <form class="needs-validation" method="POST" action="" id="loginForm">
+                    <!-- CSRF Token -->
+                    {{ form.csrf_token }}
+                    
+                    <div class="mb-3">
+                        <label class="text-label-md text-secondary d-block mb-1" for="username">Analyst Identity</label>
+                        <div class="position-relative">
+                            <span class="material-symbols-outlined position-absolute text-muted" style="left: 12px; top: 50%; transform: translateY(-50%); font-size: 18px;">person</span>
+                            <input class="w-full form-input-sentinel w-100 pl-5 font-mono-data" style="padding-left: 40px;" id="username" name="username" placeholder="analyst.id_primary" type="text" required value="{{ form.username.data or '' }}"/>
+                        </div>
+                        {% for error in form.username.errors %}
+                            <div class="text-danger small mt-1 font-mono-data">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label class="text-label-md text-secondary d-block mb-0" for="password">Security Key</label>
+                            <a class="text-label-md text-primary-dim hover:text-primary transition-colors text-decoration-none" href="#">Emergency Reset?</a>
+                        </div>
+                        <div class="position-relative">
+                            <span class="material-symbols-outlined position-absolute text-muted" style="left: 12px; top: 50%; transform: translateY(-50%); font-size: 18px;">lock</span>
+                            <input class="w-full form-input-sentinel w-100 pl-5 font-mono-data" style="padding-left: 40px;" id="password" name="password" placeholder="••••••••••••" type="password" required/>
+                        </div>
+                        {% for error in form.password.errors %}
+                            <div class="text-danger small mt-1 font-mono-data">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="d-flex align-items-center gap-2 mb-4">
+                        <input class="form-check-input bg-dark border-secondary" id="mfa" type="checkbox" style="width: 16px; height: 16px; margin: 0;"/>
+                        <label class="text-secondary" style="font-size: 12px;" for="mfa">Verify Secure Session (30 days)</label>
+                    </div>
+                    
+                    <button class="btn btn-primary w-100 text-label-md py-3 rounded-lg d-flex align-items-center justify-content-center gap-2" type="submit" style="background-color: var(--color-primary); border: none; font-weight: 600; box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);">
+                        INITIALIZE COMMAND
+                        <span class="material-symbols-outlined" style="font-size: 16px;">arrow_forward</span>
+                    </button>
+                    
+                    <div class="position-relative my-4 text-center">
+                        <hr class="border-secondary m-0" style="opacity: 0.25;">
+                        <span class="position-absolute bg-opacity-10 px-3 text-muted text-uppercase font-mono-data" style="font-size: 10px; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: #1e293b;">Enterprise Authentication</span>
+                    </div>
+                    
+                    <button class="btn btn-outline-secondary w-100 text-label-md py-2.5 rounded-lg d-flex align-items-center justify-content-center gap-2 text-white border-secondary hover:bg-dark" type="button" style="font-size: 12px;">
+                        <span class="material-symbols-outlined" style="font-size: 16px;">key</span>
+                        Sign in with SSO
+                    </button>
+                </form>
+                
+                <!-- Status Footer -->
+                <div class="mt-4 pt-3 border-t d-flex justify-content-between align-items-center" style="border-top: 1px solid rgba(70, 69, 84, 0.3);">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="health-pulse-green"></span>
+                        <span class="text-secondary" style="font-size: 11px;">System Nominal</span>
+                    </div>
+                    <span class="font-mono-data text-muted opacity-50" style="font-size: 11px;">NODE_v4.2.91-PROD</span>
+                </div>
+            </div>
+            
+            <!-- Legal/Utility Links -->
+            <div class="mt-4 d-flex justify-content-center gap-4 opacity-50">
+                <a class="text-label-md text-secondary hover:text-primary text-decoration-none" href="#">Operational Policy</a>
+                <a class="text-label-md text-secondary hover:text-primary text-decoration-none" href="#">System Status</a>
+                <a class="text-label-md text-secondary hover:text-primary text-decoration-none" href="#">Contact Admin</a>
+            </div>
+        </div>
+    </div>
+</main>
+
+<!-- Canvas Nodes Script -->
+<script>
+    const canvas = document.getElementById('nodes');
+    const ctx = canvas.getContext('2d');
+    let width, height;
+    let nodes = [];
+    const nodeCount = 60;
+    const maxDist = 180;
+
+    function resize() {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+    }
+
+    window.addEventListener('resize', resize);
+    resize();
+
+    class Node {
+        constructor() {
+            this.x = Math.random() * width;
+            this.y = Math.random() * height;
+            this.vx = (Math.random() - 0.5) * 0.4;
+            this.vy = (Math.random() - 0.5) * 0.4;
+        }
+
+        update() {
+            this.x += this.vx;
+            this.y += this.vy;
+
+            if (this.x < 0 || this.x > width) this.vx *= -1;
+            if (this.y < 0 || this.y > height) this.vy *= -1;
+        }
+    }
+
+    for (let i = 0; i < nodeCount; i++) {
+        nodes.push(new Node());
+    }
+
+    function animate() {
+        ctx.clearRect(0, 0, width, height);
+        
+        for (let i = 0; i < nodes.length; i++) {
+            nodes[i].update();
+            
+            for (let j = i + 1; j < nodes.length; j++) {
+                const dx = nodes[i].x - nodes[j].x;
+                const dy = nodes[i].y - nodes[j].y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (dist < maxDist) {
+                    ctx.beginPath();
+                    ctx.strokeStyle = `rgba(192, 193, 255, ${1 - dist/maxDist * 0.8})`;
+                    ctx.lineWidth = 0.5;
+                    ctx.moveTo(nodes[i].x, nodes[i].y);
+                    ctx.lineTo(nodes[j].x, nodes[j].y);
+                    ctx.stroke();
+                }
+            }
+        }
+        requestAnimationFrame(animate);
+    }
+
+    animate();
+
+    // Input Scaling Focus Effects
+    const inputs = document.querySelectorAll('input[type="text"], input[type="password"]');
+    inputs.forEach(input => {
+        input.addEventListener('focus', () => {
+            input.parentElement.parentElement.style.transform = 'scale(1.02)';
+            input.parentElement.parentElement.style.transition = 'transform 0.2s ease';
+        });
+        input.parentElement.parentElement.addEventListener('transitionend', () => {
+            // Keep clean
+        });
+        input.addEventListener('blur', () => {
+            input.parentElement.parentElement.style.transform = 'none';
+        });
+    });
+</script>
+{% endblock %}

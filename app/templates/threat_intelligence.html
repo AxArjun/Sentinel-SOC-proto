@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block title %}Threat Intelligence Hub - Sentinel SOC{% endblock %}
+
+{% block extra_css %}
+<style>
+    .threat-map-container {
+        height: 280px;
+        background-color: var(--surface-lowest);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-xl);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .map-pulse {
+        position: absolute;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background-color: var(--color-error);
+        transform: translate(-50%, -50%);
+        box-shadow: 0 0 10px var(--color-error);
+    }
+    
+    .map-pulse::after {
+        content: "";
+        display: block;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        border: 1px solid var(--color-error);
+        position: absolute;
+        top: -10px;
+        left: -10px;
+        animation: map-wave 2s infinite ease-out;
+        opacity: 0;
+    }
+    
+    @keyframes map-wave {
+        0% { transform: scale(0.2); opacity: 1; }
+        100% { transform: scale(1.2); opacity: 0; }
+    }
+    
+    .map-label {
+        position: absolute;
+        color: var(--text-primary);
+        font-family: var(--font-mono);
+        font-size: 10px;
+        transform: translate(-50%, 10px);
+        white-space: nowrap;
+        background: rgba(13,13,21,0.8);
+        padding: 2px 6px;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-sm);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="text-display-sm text-white mb-1 fw-bold">Threat Intelligence Hub</h2>
+        <p class="text-secondary small mb-0 font-mono-data">Global Threat Monitoring & TTP Profiling</p>
+    </div>
+    
+    <form class="d-flex gap-2" method="GET" action="{{ url_for('threats.hub') }}">
+        <input class="form-input-sentinel font-mono-data" style="width: 250px;" type="text" name="search" placeholder="Search actor or malware..." value="{{ search_query }}"/>
+        <button class="btn btn-primary px-3 py-2 text-label-md" type="submit" style="background-color: var(--color-primary); border: none; font-weight: 600;">
+            SEARCH
+        </button>
+        {% if search_query %}
+        <a href="{{ url_for('threats.hub') }}" class="btn btn-outline-secondary px-3 py-2 text-label-md text-white border-secondary">
+            CLEAR
+        </a>
+        {% endif %}
+    </form>
+</div>
+
+<!-- Map and CVEs row -->
+<div class="row g-4 mb-4">
+    <!-- Live Threat Map -->
+    <div class="col-12 col-lg-6">
+        <div class="glass-panel p-4 h-100">
+            <h5 class="text-headline-md text-white mb-3 fw-semibold">Live Threat Origins</h5>
+            
+            <div class="threat-map-container mb-3">
+                <div class="network-dot-bg" style="opacity: 0.15;"></div>
+                
+                <!-- World Map SVG outline -->
+                <svg viewBox="0 0 1000 500" class="w-100 h-100 opacity-20" style="fill: #334155;">
+                    <path d="M150,150 L200,140 L250,160 L300,180 L350,190 L340,240 L280,280 L250,350 L200,380 L180,410 L150,380 L120,330 L110,250 L110,180 Z" />
+                    <path d="M450,120 L520,110 L600,130 L650,100 L720,110 L800,150 L850,220 L780,310 L700,380 L620,420 L550,450 L520,380 L480,300 L440,220 Z" />
+                    <path d="M750,280 L820,290 L880,340 L840,410 L780,420 L720,380 Z" />
+                </svg>
+                
+                <!-- Active pulse targets (Saint Petersburg) -->
+                <div class="map-pulse" style="top: 130px; left: 520px;"></div>
+                <div class="map-label" style="top: 130px; left: 520px;">APT29 (Russia)</div>
+                
+                <!-- Pyongyang -->
+                <div class="map-pulse" style="top: 220px; left: 740px;"></div>
+                <div class="map-label" style="top: 220px; left: 740px;">Lazarus (KP)</div>
+                
+                <!-- Shanghai -->
+                <div class="map-pulse" style="top: 240px; left: 710px;"></div>
+                <div class="map-label" style="top: 240px; left: 710px;">APT41 (CN)</div>
+                
+                <!-- Tehran -->
+                <div class="map-pulse" style="top: 210px; left: 590px;"></div>
+                <div class="map-label" style="top: 210px; left: 590px;">MuddyWater (IR)</div>
+            </div>
+            
+            <div class="d-flex justify-content-between text-secondary" style="font-size: 11px;">
+                <span>Ingested Feed Sources: <strong class="text-white">{{ iocs_count }} IOCs</strong></span>
+                <span>Active Feeds: <strong class="text-white">OTX AlienVault, Abuse.ch</strong></span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Trending CVEs -->
+    <div class="col-12 col-lg-6">
+        <div class="glass-panel p-4 h-100">
+            <h5 class="text-headline-md text-white mb-3 fw-semibold">Trending Vulnerabilities</h5>
+            <div class="table-responsive">
+                <table class="table-sentinel">
+                    <thead>
+                        <tr>
+                            <th>CVE ID</th>
+                            <th>Severity / CVSS</th>
+                            <th>EPSS Score</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cve in cves %}
+                        <tr>
+                            <td class="font-mono-data fw-semibold text-white">{{ cve.cve_id }}</td>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    {% if cve.cvss_score >= 9.0 %}
+                                    <span class="status-badge status-badge-critical">{{ cve.cvss_score }}</span>
+                                    {% elif cve.cvss_score >= 7.0 %}
+                                    <span class="status-badge status-badge-high">{{ cve.cvss_score }}</span>
+                                    {% else %}
+                                    <span class="status-badge status-badge-medium">{{ cve.cvss_score }}</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td class="font-mono-data text-secondary">{{ (cve.epss_score * 100) | round(2) }}%</td>
+                            <td>
+                                <span class="badge border py-1 px-2 font-mono-data text-uppercase" style="font-size: 9px; border-color: var(--border-color) !important; color: var(--text-primary);">
+                                    {{ cve.patch_status }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Active Threat Actors & Dark Web Mentions -->
+<div class="row g-4">
+    <!-- Active Threat Actors -->
+    <div class="col-12 col-lg-7">
+        <div class="glass-panel p-4 h-100">
+            <h5 class="text-headline-md text-white mb-3 fw-semibold">Active Threat Campaigns</h5>
+            <div class="table-responsive">
+                <table class="table-sentinel">
+                    <thead>
+                        <tr>
+                            <th>Campaign / Actor</th>
+                            <th>Malware Family</th>
+                            <th>Severity</th>
+                            <th>CVE Association</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for threat in threats %}
+                        <tr>
+                            <td>
+                                <div class="fw-semibold text-white">{{ threat.name }}</div>
+                                <div class="text-secondary" style="font-size: 12px; max-width: 320px;">{{ threat.description }}</div>
+                            </td>
+                            <td class="font-mono-data text-secondary">{{ threat.malware_family or 'N/A' }}</td>
+                            <td>
+                                {% if threat.severity_score >= 90 %}
+                                <span class="status-badge status-badge-critical font-mono-data">{{ threat.severity_score }}</span>
+                                {% elif threat.severity_score >= 75 %}
+                                <span class="status-badge status-badge-high font-mono-data">{{ threat.severity_score }}</span>
+                                {% else %}
+                                <span class="status-badge status-badge-medium font-mono-data">{{ threat.severity_score }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="d-flex flex-wrap gap-1">
+                                    {% for v in threat.vulnerabilities %}
+                                    <span class="badge bg-dark border text-secondary font-mono-data" style="font-size: 9px; border-color: var(--border-color) !important;">{{ v.cve_id }}</span>
+                                    {% else %}
+                                    <span class="text-secondary" style="font-size: 11px;">None</span>
+                                    {% endfor %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center py-4 text-secondary">No threat campaigns match the search criteria.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dark Web Mentions -->
+    <div class="col-12 col-lg-5">
+        <div class="glass-panel p-4 h-100">
+            <h5 class="text-headline-md text-white mb-3 fw-semibold">Dark Web & Intelligence Feeds</h5>
+            <div class="list-group list-group-flush bg-transparent">
+                {% for mention in dark_web_mentions %}
+                <div class="list-group-item bg-transparent border-secondary text-white py-3 px-0" style="border-bottom-color: rgba(70,69,84,0.3) !important;">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="fw-semibold text-white" style="font-size: 13px;">Actor mention: {{ mention.actor }}</span>
+                        <span class="font-mono-data text-secondary" style="font-size: 11px;">{{ mention.timestamp }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-secondary" style="font-size: 12px;">Forum: <strong class="text-white">{{ mention.source }}</strong></span>
+                        {% if mention.sentiment == 'Critical' %}
+                        <span class="status-badge status-badge-critical">Critical</span>
+                        {% else %}
+                        <span class="status-badge status-badge-high">High</span>
+                        {% endif %}
+                    </div>
+                    {% if mention.leak_size != 'N/A' %}
+                    <div class="mt-2 font-mono-data text-secondary" style="font-size: 11px;">
+                        Associated Payload Leak size: <span class="text-primary-dim">{{ mention.leak_size }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

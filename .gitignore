@@ -1,0 +1,39 @@
+# Python virtual environment
+venv/
+.venv/
+env/
+ENV/
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local Database
+threat_intel.db
+
+# Stitch workspace files / download cache
+stitch_screens/
+stitch_html/
+mcp_tools_full.json
+projects_list_output.txt
+
+# Temporary diagnostic scripts
+get_sentinel_design.py
+fetch_all_screens.py
+download_html_files.py
+inspect_html_details.py
+inspect_main_pages.py
+extract_page_content.py
+analyze_screens.py
+read_mcp_schemas.py
+
+# Local configurations
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env.staging
+.flaskenv
